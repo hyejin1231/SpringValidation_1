@@ -161,8 +161,12 @@ public class ValidationItemControllerV2 {
      * @param model
      * @return
      */
-    @PostMapping("/add")
+//    @PostMapping("/add")
     public String addItemV3(@ModelAttribute Item item, BindingResult bindingResult, RedirectAttributes redirectAttributes, Model model) {
+
+        log.info("objectName={}", bindingResult.getObjectName());
+        log.info("target={}", bindingResult.getTarget());
+
 
         // 검증 로직
         if (!StringUtils.hasText(item.getItemName())) {
@@ -183,6 +187,59 @@ public class ValidationItemControllerV2 {
             if (resultPrice < 10000) {
                 // ObjectError : 특정 필드를 넘어서는 오류가 있는 경우에는 ObjectError를 생성해서 bindingResult에 담아두면 된다.
                 bindingResult.addError(new ObjectError("item",new String[] {"totalPriceMin"},new Object[]{10000, resultPrice},null));
+            }
+        }
+
+        // 검증에 실패하면 다시 입력 폼으로
+        if (bindingResult.hasErrors()) {
+            log.info("errors={}", bindingResult);
+            return "validation/v2/addForm";
+        }
+
+        // 성공 로직
+        Item savedItem = itemRepository.save(item);
+        redirectAttributes.addAttribute("itemId", savedItem.getId());
+        redirectAttributes.addAttribute("status", true);
+        return "redirect:/validation/v2/items/{itemId}";
+    }
+
+    /**
+     * V2 오류 코드 와 메시지처리 #2
+     * bindingResult의 RejectValue와 Reject
+     * BindingReuslt는 검증해야할 객체인 target을 알고 있다(log 참고) 그러므로 target의 대한 정보는 굳이 작성해주지 않아도 된다.
+     * 축약된 오류 코드 range.item.price -> range 로 간단하게 입력가능
+     * -> MessageCodeResolver
+     * @param item
+     * @param bindingResult
+     * @param redirectAttributes
+     * @param model
+     * @return
+     */
+    @PostMapping("/add")
+    public String addItemV4(@ModelAttribute Item item, BindingResult bindingResult, RedirectAttributes redirectAttributes, Model model) {
+
+        log.info("objectName={}", bindingResult.getObjectName());
+        log.info("target={}", bindingResult.getTarget());
+
+
+        // 검증 로직
+        if (!StringUtils.hasText(item.getItemName())) {
+            bindingResult.rejectValue("itemName","required");
+        }
+
+        if (item.getPrice() == null || item.getPrice() < 1000 || item.getPrice() > 1000000) {
+            bindingResult.rejectValue("price", "range", new Object[]{1000, 1000000}, null);
+        }
+
+        if (item.getQuantity() == null || item.getQuantity() >= 9000) {
+            bindingResult.rejectValue("quantity", "max", new Object[]{9999}, null);
+        }
+
+        // 특정 필드가 아닌 복합 룰 검증
+        if (item.getPrice() != null && item.getQuantity() != null) {
+            int resultPrice = item.getPrice() * item.getQuantity();
+            if (resultPrice < 10000) {
+                bindingResult.reject("totalPriceMin", new Object[]{10000, resultPrice},null);
             }
         }
 
